@@ -97,6 +97,7 @@ class HuggingFaceWav2Vec2(nn.Module):
         source,
         save_path,
         output_norm=True,
+        output_hidden_states=False,
         freeze=True,
         freeze_feature_extractor=False,
         apply_spec_augment=False,
@@ -134,6 +135,7 @@ class HuggingFaceWav2Vec2(nn.Module):
         self.freeze = freeze
         self.freeze_feature_extractor = freeze_feature_extractor
         self.output_norm = output_norm
+        self.model.config.output_hidden_states = output_hidden_states
         if self.freeze:
             logger.warning(
                 "speechbrain.lobes.models.huggingface_wav2vec - wav2vec 2.0 is frozen."
@@ -278,8 +280,11 @@ class HuggingFaceWav2Vec2(nn.Module):
             wav = F.layer_norm(wav, wav.shape)
 
         # Extract wav2vec output
-        out = self.model(wav)[0]
-
+        if self.model.config.output_hidden_states:
+            out = self.model(wav)
+            return torch.stack(out.hidden_states[1:]).transpose(0,1)
+        else:
+            out = self.model(wav)[0]
         # We normalize the output if required
         if self.output_norm:
             out = F.layer_norm(out, out.shape)

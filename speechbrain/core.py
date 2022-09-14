@@ -38,6 +38,8 @@ from speechbrain.dataio.dataloader import LoopedLoader
 from speechbrain.dataio.dataloader import SaveableDataLoader
 from speechbrain.dataio.sampler import DistributedSamplerWrapper
 from speechbrain.dataio.sampler import ReproducibleRandomSampler
+from pytorch_memlab import profile, profile_every, MemReporter
+
 
 logger = logging.getLogger(__name__)
 DEFAULT_LOG_CONFIG = os.path.dirname(os.path.abspath(__file__))
@@ -982,6 +984,7 @@ class Brain:
     def _fit_train(self, train_set, epoch, enable):
         # Training stage
         self.on_stage_start(Stage.TRAIN, epoch)
+        # self.on_stage_start(Stage.VALID, epoch)
         self.modules.train()
 
         # Reset nonfinite count to 0 each epoch
@@ -994,7 +997,7 @@ class Brain:
 
         # Time since last intra-epoch checkpoint
         last_ckpt_time = time.time()
-
+        # reporter = MemReporter()
         with tqdm(
             train_set,
             initial=self.step,
@@ -1011,6 +1014,8 @@ class Brain:
                     loss, self.avg_train_loss
                 )
                 t.set_postfix(train_loss=self.avg_train_loss)
+                
+                # reporter.report()
 
                 # Profile only if desired (steps allow the profiler to know when all is warmed up)
                 if self.profiler is not None:
@@ -1071,7 +1076,7 @@ class Brain:
                     self.on_stage_end,
                     args=[Stage.VALID, avg_valid_loss, epoch],
                 )
-
+    # @profile_every(output_interval=3)
     def fit(
         self,
         epoch_counter,
@@ -1208,7 +1213,7 @@ class Brain:
         else:
             # data_parallel_backend
             for name, module in self.modules.items():
-                if any(p.requires_grad for p in module.parameters()):
+                if any(p.requires_grad for p in module.parameters()) or name in ['encoder','wav2vec']:
                     module = DP(module)
                     self.modules[name] = module
 
