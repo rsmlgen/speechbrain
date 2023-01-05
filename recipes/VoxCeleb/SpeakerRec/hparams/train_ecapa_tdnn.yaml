@@ -26,12 +26,12 @@ rir_folder: !ref <data_folder> # Change it if needed
 # Therefore you cannot use any files in VoxCeleb1 for training if you are using these lists for testing.
 verification_file: https://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta/veri_test2.txt
 
-skip_prep: False
+skip_prep: True
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
 number_of_epochs: 30
-batch_size: 16
+batch_size: 32
 lr: 0.001
 base_lr: 0.00000001
 max_lr: !ref <lr>

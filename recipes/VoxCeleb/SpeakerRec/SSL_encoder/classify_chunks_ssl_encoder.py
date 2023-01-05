@@ -11,6 +11,7 @@ Authors
     * Hwidong Na 2020
     * Mirco Ravanelli 2020
 """
+from audioop import reverse
 import os
 import sys
 from turtle import pos
@@ -155,7 +156,6 @@ def get_classification_result(veri_test):
             if lab_pair == 1:
                 # positive_scores.append(torch.nn.functional.mse_loss(enrol,test,reduction='mean'))
                 positive_scores.append(torch.nn.functional.cosine_similarity(enrol,test))
-                print()
             else:
                 # negative_scores.append(torch.nn.functional.mse_loss(enrol,test,reduction='mean'))
                 negative_scores.append(torch.nn.functional.cosine_similarity(enrol,test))
@@ -190,13 +190,13 @@ def dataio_prep(params):
     enrol_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
         csv_path=params["enrol_data"], replacements={"data_root": data_folder},
     )
-    enrol_data = enrol_data.filtered_sorted(sort_key="duration")
+    enrol_data = enrol_data.filtered_sorted(sort_key="duration",reverse=True)
 
     # Test data
     test_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
         csv_path=params["test_data"], replacements={"data_root": data_folder},
     )
-    test_data = test_data.filtered_sorted(sort_key="duration")
+    test_data = test_data.filtered_sorted(sort_key="duration",reverse=True)
 
     datasets = [enrol_data, test_data]
 
@@ -262,7 +262,7 @@ if __name__ == "__main__":
         verification_pairs_file=veri_file_path,
         splits=[ "test"],
         split_ratio=[100],
-        seg_dur=3.0,
+        seg_dur=10.0,
         source=params["voxceleb_source"]
         if "voxceleb_source" in params
         else None,
@@ -290,8 +290,8 @@ if __name__ == "__main__":
     logger.info("Computing enroll/test embeddings...")
 
     # First run
-    enrol_dict = compute_embedding_loop(enrol_dataloader,use_chunks=True)
-    test_dict = compute_embedding_loop(test_dataloader,use_chunks=True)
+    enrol_dict = compute_embedding_loop(enrol_dataloader,use_chunks=False)
+    test_dict = compute_embedding_loop(test_dataloader,use_chunks=False)
 
     # if "score_norm" in params:
     #     train_dict = compute_embedding_loop(train_dataloader)  

@@ -4,6 +4,7 @@ Data preparation.
 Download: http://www.robots.ox.ac.uk/~vgg/data/voxceleb/
 """
 
+from cmath import inf
 import os
 import csv
 import logging
@@ -43,6 +44,7 @@ def prepare_voxceleb(
     seg_dur=3.0,
     amp_th=5e-04,
     source=None,
+    max_dur=inf,
     split_speaker=False,
     random_segment=False,
     skip_prep=False,
@@ -143,16 +145,16 @@ def prepare_voxceleb(
     # Creating csv file for training data
     if "train" in splits:
         prepare_csv(
-            seg_dur, wav_lst_train, save_csv_train, random_segment, amp_th
+            seg_dur, wav_lst_train, save_csv_train, random_segment, amp_th, max_dur
         )
 
     if "dev" in splits:
-        prepare_csv(seg_dur, wav_lst_dev, save_csv_dev, random_segment, amp_th)
+        prepare_csv(seg_dur, wav_lst_dev, save_csv_dev, random_segment, amp_th, max_dur)
 
     # For PLDA verification
     if "test" in splits:
         prepare_csv_enrol_test(
-            data_folder, save_folder, verification_pairs_file
+            data_folder,seg_dur, save_folder,  verification_pairs_file
         )
 
     # Saving options (useful to skip this phase when already done)
@@ -319,7 +321,7 @@ def _get_chunks(seg_dur, audio_id, audio_duration):
     return chunk_lst
 
 
-def prepare_csv(seg_dur, wav_lst, csv_file, random_segment=False, amp_th=0):
+def prepare_csv(seg_dur, wav_lst, csv_file, random_segment=False, amp_th=0,max_dur=torch.inf):
     """
     Creates the csv file given a list of wav files.
 
@@ -362,8 +364,9 @@ def prepare_csv(seg_dur, wav_lst, csv_file, random_segment=False, amp_th=0):
         signal, fs = torchaudio.load(wav_file)
         signal = signal.squeeze(0)
 
-        if random_segment:
-            audio_duration = signal.shape[0] / SAMPLERATE
+        audio_duration = signal.shape[0] / SAMPLERATE
+        if random_segment and audio_duration <= max_dur :
+            
             start_sample = 0
             stop_sample = signal.shape[0]
 
@@ -378,8 +381,6 @@ def prepare_csv(seg_dur, wav_lst, csv_file, random_segment=False, amp_th=0):
             ]
             entry.append(csv_line)
         else:
-            audio_duration = signal.shape[0] / SAMPLERATE
-
             uniq_chunks_list = _get_chunks(seg_dur, audio_id, audio_duration)
             for chunk in uniq_chunks_list:
                 s, e = chunk.split("_")[-2:]
@@ -417,7 +418,7 @@ def prepare_csv(seg_dur, wav_lst, csv_file, random_segment=False, amp_th=0):
     logger.info(msg)
 
 
-def prepare_csv_enrol_test(data_folders, save_folder, verification_pairs_file):
+def prepare_csv_enrol_test(data_folders, seg_dur, save_folder, verification_pairs_file):
     """
     Creates the csv file for test data (useful for verification)
 
@@ -467,7 +468,11 @@ def prepare_csv_enrol_test(data_folders, save_folder, verification_pairs_file):
             signal = signal.squeeze(0)
             audio_duration = signal.shape[0] / SAMPLERATE
             start_sample = 0
-            stop_sample = signal.shape[0]
+            # stop_sample = signal.shape[0] 
+            if signal.shape[0] < seg_dur * SAMPLERATE:
+                stop_sample = signal.shape[0]
+            else:
+                stop_sample = int(seg_dur * SAMPLERATE)
             [spk_id, sess_id, utt_id] = wav.split("/")[-3:]
 
             csv_line = [
@@ -503,7 +508,11 @@ def prepare_csv_enrol_test(data_folders, save_folder, verification_pairs_file):
             signal = signal.squeeze(0)
             audio_duration = signal.shape[0] / SAMPLERATE
             start_sample = 0
-            stop_sample = signal.shape[0]
+            # stop_sample = signal.shape[0]
+            if signal.shape[0] < seg_dur * SAMPLERATE:
+                stop_sample = signal.shape[0]
+            else:
+                stop_sample = int(seg_dur * SAMPLERATE)
             [spk_id, sess_id, utt_id] = wav.split("/")[-3:]
 
             csv_line = [

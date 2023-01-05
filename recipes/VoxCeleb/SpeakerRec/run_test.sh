@@ -1,0 +1,2 @@
+#!/bin/bash
+CUDA_VISIBLE_DEVICES=2 python speaker_verification_cosine_ssl_encoder.py hparams/verification_ecapa_ssl_encoder.yaml

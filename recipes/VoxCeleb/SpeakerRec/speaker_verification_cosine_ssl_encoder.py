@@ -38,9 +38,26 @@ def compute_embedding(wavs, wav_lens):
         in the length (e.g., [0.8 0.6 1.0])
     """
     with torch.no_grad():
-        feats = params["compute_features"](wavs)
-        feats = params["mean_var_norm"](feats, wav_lens)
-        embeddings = params["embedding_model"](feats, wav_lens)
+
+        wav2vec_feats = params["wav2vec2"](wavs)
+        encoder_feats = params["encoder"](wav2vec_feats)
+
+        if params["wav2vec2"].model.config.output_hidden_states:
+            encodings_w = params["weighted_sum"](encoder_feats)
+        else:
+            encodings_w = encoder_feats
+
+
+        # feats = params["compute_features"](wavs)
+        
+        # feats = params["mean_var_norm"](feats, wav_lens)
+        
+        encodings_w = torch.nn.functional.layer_norm(encodings_w,(encodings_w.shape[-1],))
+        # feats = encodings_w
+        embeddings = params["embedding_model"](encodings_w, wav_lens)
+        # embeddings = params["mean_var_norm_emb"](
+        #     embeddings, torch.ones(embeddings.shape[0]).to(embeddings.device)
+        # )
     return embeddings.squeeze(1)
 
 
@@ -151,27 +168,27 @@ def dataio_prep(params):
 
     data_folder = params["data_folder"]
 
-    # Train data (used for normalization)
-    train_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
-        csv_path=params["train_data"], replacements={"data_root": data_folder},
-    )
-    train_data = train_data.filtered_sorted(
-        sort_key="duration", select_n=params["n_train_snts"]
-    )
+    # # Train data (used for normalization)
+    # train_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
+    #     csv_path=params["train_data"], replacements={"data_root": data_folder},
+    # )
+    # train_data = train_data.filtered_sorted(
+    #     sort_key="duration", select_n=params["n_train_snts"]
+    # )
 
     # Enrol data
     enrol_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
         csv_path=params["enrol_data"], replacements={"data_root": data_folder},
     )
-    enrol_data = enrol_data.filtered_sorted(sort_key="duration")
+    enrol_data = enrol_data.filtered_sorted(sort_key="duration",reverse=True)
 
     # Test data
     test_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
         csv_path=params["test_data"], replacements={"data_root": data_folder},
     )
-    test_data = test_data.filtered_sorted(sort_key="duration")
+    test_data = test_data.filtered_sorted(sort_key="duration",reverse=True)
 
-    datasets = [train_data, enrol_data, test_data]
+    datasets = [ enrol_data, test_data]
 
     # Define audio pipeline
     @sb.utils.data_pipeline.takes("wav", "start", "stop")
@@ -192,9 +209,9 @@ def dataio_prep(params):
     sb.dataio.dataset.set_output_keys(datasets, ["id", "sig"])
 
     # Create dataloaders
-    train_dataloader = sb.dataio.dataloader.make_dataloader(
-        train_data, **params["train_dataloader_opts"]
-    )
+    # train_dataloader = sb.dataio.dataloader.make_dataloader(
+    #     train_data, **params["train_dataloader_opts"]
+    # )
     enrol_dataloader = sb.dataio.dataloader.make_dataloader(
         enrol_data, **params["enrol_dataloader_opts"]
     )
@@ -202,7 +219,7 @@ def dataio_prep(params):
         test_data, **params["test_dataloader_opts"]
     )
 
-    return train_dataloader, enrol_dataloader, test_dataloader
+    return  enrol_dataloader, test_dataloader
 
 
 if __name__ == "__main__":
@@ -237,13 +254,15 @@ if __name__ == "__main__":
         save_folder=params["save_folder"],
         verification_pairs_file=veri_file_path,
         splits=["test"],
+        split_ratio=[100],
+        seg_dur=3.0,
         source=params["voxceleb_source"]
         if "voxceleb_source" in params
         else None,
     )
 
     # here we create the datasets objects as well as tokenization and encoding
-    train_dataloader, enrol_dataloader, test_dataloader = dataio_prep(params)
+    enrol_dataloader, test_dataloader = dataio_prep(params)
 
     # We download the pretrained LM from HuggingFace (or elsewhere depending on
     # the path given in the YAML file). The tokenizer is loaded at the same time.
@@ -252,6 +271,15 @@ if __name__ == "__main__":
     params["embedding_model"].eval()
     params["embedding_model"].to(params["device"])
 
+    params["encoder"].eval()
+    params["encoder"].to(params["device"])
+
+    params["weighted_sum"].eval()
+    params["weighted_sum"].to(params["device"])
+
+    params["wav2vec2"].eval()
+    params["wav2vec2"].to(params["device"])
+    
     # Computing  enrollment and test embeddings
     logger.info("Computing enroll/test embeddings...")
 
@@ -261,6 +289,12 @@ if __name__ == "__main__":
 
     if "score_norm" in params:
         train_dict = compute_embedding_loop(train_dataloader)
+
+
+    # # Second run
+    # enrol_dict = compute_embedding_loop(enrol_dataloader)
+    # test_dict = compute_embedding_loop(test_dataloader)
+
 
     # Compute the EER
     logger.info("Computing EER..")

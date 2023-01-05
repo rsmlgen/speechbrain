@@ -6,7 +6,7 @@
 # Basic parameters
 seed: 1986
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/ecapa_augment_with_ssl_encoder/<seed>
+output_folder: !ref results/ecapa_augment_with_ssl_encoder_largesegment_nofreeze/<seed>
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
 
@@ -26,11 +26,11 @@ rir_folder: !ref <data_folder> # Change it if needed
 # Therefore you cannot use any files in VoxCeleb1 for training if you are using these lists for testing.
 verification_file: https://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta/veri_test2.txt
 
-skip_prep: False
+skip_prep: True
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 30
+number_of_epochs: 35
 batch_size: 32
 lr: 0.001
 base_lr: 0.00000001
@@ -57,7 +57,7 @@ dataloader_options:
 
 # Functions
 
-wav2vec2_hub: facebook/wav2vec2-large-960h-lv60-self
+wav2vec2_hub: facebook/wav2vec2-base
 freeze_wav2vec: True
 
 
@@ -70,17 +70,18 @@ wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
 
 
 encoder: !new:speechbrain.lobes.models.ssl_speaker_encoder.SSL_speaker_enc_multi
-    num_enc: 24
-    enc_dim: [1024,512,256]
-    freeze: True
-    pretrained: SSL_encoder/results/ssl_encoder_multi/1986/save/CKPT+2022-08-20+13-10-31+00/encoder.ckpt
+    num_enc: 12
+    enc_dim: [768,512,256]
+    freeze: False
+    pretrained: SSL_encoder/results/ssl_encoder_multi_largesegment/1986/save/CKPT+2022-10-14+22-49-54+00/encoder.ckpt
 
-pretrain_encoder_path: SSL_encoder/results/ssl_encoder_multi/1986/save/CKPT+2022-08-20+13-10-31+00/
+pretrain_encoder_path: SSL_encoder/results/ssl_encoder_multi_largesegment/1986/save/CKPT+2022-10-14+22-49-54+00/encoder.ckpt
 
 
-weighted_sum: !new:speechbrain.lobes.models.ssl_speaker_encoder.WeightedSum
-    freeze: True
-    pretrained: SSL_encoder/results/ssl_encoder_multi/1986/save/CKPT+2022-08-20+13-10-31+00/weighted_sum.ckpt
+weighted_sum: !new:speechbrain.lobes.models.ssl_speaker_encoder.WeightedSum_softmax
+    freeze: False
+    num_weight: 12
+    pretrained: SSL_encoder/results/ssl_encoder_multi_largesegment/1986/save/CKPT+2022-10-14+22-49-54+00/weighted_sum.ckpt
 
 
 embedding_model: !new:speechbrain.lobes.models.ECAPA_TDNN.ECAPA_TDNN
@@ -197,10 +198,12 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
         embedding_model: !ref <embedding_model>
         classifier: !ref <classifier>
         normalizer: !ref <mean_var_norm>
+        encoder: !ref <encoder>
+        weighted_sum: !ref <weighted_sum>
         counter: !ref <epoch_counter>
         lr_annealing: !ref <lr_annealing>
 
-num_to_keep: !ref <number_of_epochs>
+num_to_keep: 35
 
 # pretrainer_encoder: !new:speechbrain.utils.parameter_transfer.Pretrainer
 #     collect_in: !ref <save_folder>

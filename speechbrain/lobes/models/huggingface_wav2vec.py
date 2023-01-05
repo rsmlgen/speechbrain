@@ -282,7 +282,10 @@ class HuggingFaceWav2Vec2(nn.Module):
         # Extract wav2vec output
         if self.model.config.output_hidden_states:
             out = self.model(wav)
-            return torch.stack(out.hidden_states[1:]).transpose(0,1)
+            out = torch.stack(out.hidden_states[1:]).transpose(0,1)
+            norm_shape = out.shape[-2:]
+            out = F.layer_norm(out,norm_shape)
+            return out
         else:
             out = self.model(wav)[0]
         # We normalize the output if required

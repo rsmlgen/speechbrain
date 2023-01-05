@@ -80,7 +80,8 @@ class SpeakerBrain(sb.core.Brain):
         # feats = self.modules.mean_var_norm(feats, lens)
 
         # Embeddings + speaker classifier
-        encodings_w = self.modules.mean_var_norm(encodings_w, lens)
+        # encodings_w = self.modules.mean_var_norm(encodings_w, lens)
+        encodings_w = torch.nn.functional.layer_norm(encodings_w,(encodings_w.shape[-1],))
         embeddings = self.modules.embedding_model(encodings_w)
         outputs = self.modules.classifier(embeddings)
 

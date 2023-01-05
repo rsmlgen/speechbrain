@@ -6,12 +6,12 @@
 # Basic parameters
 seed: 1986
 __set_seed: !apply:torch.manual_seed [!ref <seed>]
-output_folder: !ref results/ssl_encoder_multi/<seed>
+output_folder: !ref results/ssl_encoder_multi_largesegment/<seed>
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
 
 # Data files
-data_folder: /mnt/storage4/speaker_recognition/voxceleb2/dev_and_v1test  # e.g. /path/to/Voxceleb
+data_folder: /mnt/storage4/tmp/spkr/data/voxceleb2/dev_and_v1test  # e.g. /path/to/Voxceleb
 train_annotation: !ref <save_folder>/train.csv
 valid_annotation: !ref <save_folder>/dev.csv
 
@@ -26,25 +26,25 @@ rir_folder: !ref <data_folder> # Change it if needed
 # Therefore you cannot use any files in VoxCeleb1 for training if you are using these lists for testing.
 verification_file: https://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta/veri_test2.txt
 
-wav2vec2_hub: facebook/wav2vec2-large-960h-lv60-self
+wav2vec2_hub: facebook/wav2vec2-base
 freeze_wav2vec: True
 
 skip_prep: True
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
 # Training parameters
-number_of_epochs: 10
+number_of_epochs: 20
 batch_size: 32
 lr: 0.001
 base_lr: 0.00000001
 max_lr: !ref <lr>
 step_size: 65000
 sample_rate: 16000
-sentence_len: 5.0 # seconds
-random_segment: False
+sentence_len: 3.0 # seconds
+random_segment: True
 shuffle: True
 random_chunk: False
-chunk_size: 200
+chunk_size: 1500
 
 # Feature parameters
 n_mels: 80
@@ -77,8 +77,8 @@ wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
 
 
 encoder: !new:speechbrain.lobes.models.ssl_speaker_encoder.SSL_speaker_enc_multi
-    num_enc: 24
-    enc_dim: [1024,512,256]
+    num_enc: 12
+    enc_dim: [768,512,256]
 
 classifier: !new:speechbrain.lobes.models.ssl_speaker_encoder.Classifier
     input_shape : [null, null, 512]
@@ -86,8 +86,8 @@ classifier: !new:speechbrain.lobes.models.ssl_speaker_encoder.Classifier
 pooling: !new:speechbrain.lobes.models.ssl_speaker_encoder.AvgPooling
     use_std: False
 
-weighted_sum: !new:speechbrain.lobes.models.ssl_speaker_encoder.WeightedSum
-
+weighted_sum: !new:speechbrain.lobes.models.ssl_speaker_encoder.WeightedSum_softmax
+    num_weight: 12
 # embedding_model: !new:speechbrain.lobes.models.ECAPA_TDNN.ECAPA_TDNN
 #     input_size: !ref <n_mels>
 #     channels: [1024, 1024, 1024, 1024, 3072]

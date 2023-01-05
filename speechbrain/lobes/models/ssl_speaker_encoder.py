@@ -84,20 +84,21 @@ class Classifier(sb.nnet.containers.Sequential):
 
 class LinearBlock(nn.Module):
 
-    def __init__(self, in_feats, out_feats, activation = nn.LeakyReLU(), normalize=True):
+    def __init__(self, in_feats, out_feats, activation = nn.LeakyReLU(),normalize=True):
         super(LinearBlock, self).__init__()
         self.linear =nn.Linear(in_feats,out_feats)
         torch.nn.init.xavier_uniform(self.linear.weight)
         self.normalize = normalize
         if normalize:
-            self.batch_norm = nn.BatchNorm1d(out_feats)
+            self.batch_norm = _BatchNorm1d(input_size=out_feats)
         self.activation = activation
 
     def forward(self,x):
         x = self.linear(x)
+        if self.activation is not None:
+            x = self.activation(x)
         if self.normalize:
             x = self.batch_norm(x)
-        x = self.activation(x)
         return x
 
 class SSL_speaker_enc(nn.Module):
@@ -111,8 +112,11 @@ class SSL_speaker_enc(nn.Module):
 
         self.blocks = nn.ModuleList()
 
-        for i in range(1,len(lin_dims)):
+        for i in range(1,len(lin_dims)-1):
             self.blocks.append(LinearBlock(lin_dims[i-1],lin_dims[i],normalize=False))
+            # self.blocks.append(LinearBlock(lin_dims[i-1],lin_dims[i],normalize=True))
+            
+        self.blocks.append(LinearBlock(lin_dims[-2],lin_dims[-1],activation=None,normalize=False))
 
     def forward(self,x,lens=None):
 
@@ -168,7 +172,12 @@ class SSL_speaker_enc_multi(nn.Module):
                 modified_state_dict[key] = pretrained_state_dict[key]
         
         self.load_state_dict(modified_state_dict,strict=False)
-        print()
+        # for child in self.children():
+        #     for ii in range(len(child)):
+        #         for jj in range(len(child[ii]._modules['blocks'])):
+        #             if type(child[ii]._modules['blocks'][jj])== _BatchNorm1d:
+        #                 child[ii].track_running_stats = False
+        # print()
 
     
 
@@ -194,6 +203,37 @@ class WeightedSum(nn.Module):
         # x_t = torch.transpose(x,0,-1)
         x_t = torch.permute(x,(-1,0,2,1))
         w_sum = torch.matmul(x_t,self.weights) / torch.sum(self.weights)
+
+        return w_sum.squeeze(-1).permute(1,2,0)
+
+    def load_pretrained(self,pretrain_path):
+        pretrained_state_dict = torch.load(pretrain_path,map_location='cpu')
+        self.load_state_dict(pretrained_state_dict,strict=False)
+
+
+class WeightedSum_softmax(nn.Module):
+    def __init__(
+        self,
+        num_weight=24,
+        freeze = False,
+        pretrained = None,
+    ):
+        super().__init__()
+        self.weights = nn.Parameter(torch.zeros((num_weight,1)))
+        self.freeze = freeze
+        
+        if pretrained is not None:
+            self.load_pretrained(pretrained)
+        
+        if freeze:
+            self.weights.requires_grad = False
+
+    def forward(self,x):
+        
+        # x_t = torch.transpose(x,0,-1)
+        x_t = torch.permute(x,(-1,0,2,1))
+        weights_norm = F.softmax(self.weights,dim=0)
+        w_sum = torch.matmul(x_t,weights_norm)
 
         return w_sum.squeeze(-1).permute(1,2,0)
 

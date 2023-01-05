@@ -61,8 +61,12 @@ class SSL_speaker(sb.core.Brain):
             chunks.append(wavs[i][torch.min(chunk_anchors)-chunk_len : torch.min(chunk_anchors)]) 
             
             if stage == sb.Stage.TRAIN:
-                chunks.append(wavs[i+self.hparams.batch_size * torch.randint(0,len(self.hparams.augment_pipeline),(1,))].squeeze(0)[torch.max(chunk_anchors):torch.max(chunk_anchors) + chunk_len ])
+                
+                aug_select = torch.randperm(self.n_augment-1)[:2]
+                chunks.append(wavs[i+self.hparams.batch_size * aug_select[0]][torch.min(chunk_anchors)-chunk_len : torch.min(chunk_anchors)]) 
+                chunks.append(wavs[i+self.hparams.batch_size * aug_select[1]][torch.max(chunk_anchors):torch.max(chunk_anchors) + chunk_len ])
             else:
+                chunks.append(wavs[i][torch.min(chunk_anchors)-chunk_len : torch.min(chunk_anchors)]) 
                 chunks.append(wavs[i].squeeze(0)[torch.max(chunk_anchors):torch.max(chunk_anchors) + chunk_len ])
 
         chunks_all = torch.stack(chunks,dim=0)
@@ -222,7 +226,7 @@ class SSL_speaker(sb.core.Brain):
             )
             self.checkpointer.save_and_keep_only(
                 meta={"ErrorRate": stage_stats["ErrorRate"]},
-                min_keys=["ErrorRate"],
+                min_keys=["ErrorRate"],num_to_keep=self.hparams.num_to_keep,
             )
 
 
@@ -237,9 +241,18 @@ def dataio_prep(hparams):
         replacements={"data_root": data_folder},
     )
 
+    train_data = train_data.filtered_sorted(
+        sort_key="duration",reverse=True
+    )
+
     valid_data = sb.dataio.dataset.DynamicItemDataset.from_csv(
         csv_path=hparams["valid_annotation"],
         replacements={"data_root": data_folder},
+    )
+
+
+    valid_data = valid_data.filtered_sorted(
+        sort_key="duration", reverse=True
     )
 
     datasets = [train_data, valid_data]
@@ -323,6 +336,8 @@ if __name__ == "__main__":
             "splits": ["train", "dev"],
             "split_ratio": [90, 10],
             "random_segment": hparams["random_segment"],
+            "seg_dur": 15.0,
+            "max_dur": 15.0,
             "skip_prep": hparams["skip_prep"],
         },
     )

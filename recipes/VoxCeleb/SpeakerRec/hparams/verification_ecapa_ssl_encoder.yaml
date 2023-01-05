@@ -9,7 +9,7 @@ __set_seed: !apply:torch.manual_seed [!ref <seed>]
 
 # Folders and train_log file
 data_folder: /mnt/storage4/tmp/spkr/data/voxceleb1/all #e.g., /localscratch/voxceleb1
-output_folder: results/ecapa_augment/1986
+output_folder: results/ecapa_augment_with_ssl_encoder_test/1986
 save_folder: !ref <output_folder>/save/
 device: 'cuda:0'
 
@@ -25,14 +25,17 @@ verification_file: https://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta/veri_test
 # is downloaded from the speechbrain HuggingFace repository.
 # However, a local path pointing to a directory containing your checkpoints may also be specified
 # instead (see pretrainer below)
-pretrain_path: results/ecapa_augment/1986/save/CKPT+2022-09-19+09-03-15+00/
+pretrain_path:  results/ecapa_augment_with_ssl_encoder_largesegment_nofreeze/1986/save/CKPT+2022-10-29+22-42-42+00
+
+wav2vec2_hub: facebook/wav2vec2-base
+freeze_wav2vec: True
 
 # csv files
 train_data: !ref <save_folder>/train.csv
 enrol_data: !ref <save_folder>/enrol.csv
 test_data: !ref <save_folder>/test.csv
 
-batch_size: 8
+batch_size: 2
 # score_norm: s-norm  # z-norm t-norm s-norm (uncomment to enable it)
 cohort_size: 20000 # amount of imposter utterances in normalization cohort
 n_train_snts: 400000 # used for normalization stats
@@ -60,11 +63,38 @@ mean_var_norm: !new:speechbrain.processing.features.InputNormalization
     norm_type: sentence
     std_norm: False
 
+mean_var_norm_emb: !new:speechbrain.processing.features.InputNormalization
+    norm_type: global
+    std_norm: False
+
+
+wav2vec2: !new:speechbrain.lobes.models.huggingface_wav2vec.HuggingFaceWav2Vec2
+   source: !ref <wav2vec2_hub>
+   output_norm: False
+   output_hidden_states: True
+   freeze: !ref <freeze_wav2vec>
+   save_path: results/ecapa_augment_with_ssl_encoder_largesegment_nofreeze/1986/save/wav2vec2_checkpoint
+
+
+encoder: !new:speechbrain.lobes.models.ssl_speaker_encoder.SSL_speaker_enc_multi
+    num_enc: 12
+    enc_dim: [768,512,256]
+    freeze: True
+    pretrained: results/ecapa_augment_with_ssl_encoder_largesegment_nofreeze/1986/save/CKPT+2022-10-29+22-42-42+00/encoder.ckpt
+
+
+weighted_sum: !new:speechbrain.lobes.models.ssl_speaker_encoder.WeightedSum_softmax
+    freeze: True
+    num_weight: 12
+    pretrained: results/ecapa_augment_with_ssl_encoder_largesegment_nofreeze/1986/save/CKPT+2022-10-29+22-42-42+00/weighted_sum.ckpt
+
+
 embedding_model: !new:speechbrain.lobes.models.ECAPA_TDNN.ECAPA_TDNN
-    input_size: !ref <n_mels>
+    input_size: 256 
     channels: [1024, 1024, 1024, 1024, 3072]
     kernel_sizes: [5, 3, 3, 3, 1]
     dilations: [1, 2, 3, 4, 1]
+    groups: [1, 1, 1, 1, 1]
     attention_channels: 128
     lin_neurons: 192
 
